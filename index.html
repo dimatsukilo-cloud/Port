@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Реестр проектов</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: sticky identity column on the left, a filterable project registry on the right.
+   Each project is a registry entry with an expandable code excerpt. */
+:root {
+  --bg: #eef1f2;
+  --surface: #f7f9f9;
+  --fg: #12191c;
+  --muted: #55656b;
+  --line: #cdd7da;
+  --accent: #00758f;
+  --accent-ink: #ffffff;
+  --code-bg: #e3e9eb;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1416; --surface: #151c1f; --fg: #e6edef; --muted: #8fa1a8;
+    --line: #263135; --accent: #4fc3e0; --accent-ink: #06191f; --code-bg: #0a0e10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1416; --surface: #151c1f; --fg: #e6edef; --muted: #8fa1a8;
+  --line: #263135; --accent: #4fc3e0; --accent-ink: #06191f; --code-bg: #0a0e10;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 40px;
+}
+@media (min-width: 880px) {
+  .wrap { grid-template-columns: 300px minmax(0, 1fr); gap: 64px; }
+  aside { position: sticky; top: 40px; align-self: start; }
+}
+
+/* identity column */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.2rem, 5vw, 3rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+  text-wrap: balance;
+}
+.lead { color: var(--muted); margin: 0 0 28px; max-width: 34ch; }
+
+.stack { display: grid; gap: 14px; margin: 0 0 28px; padding: 0; list-style: none; }
+.stack li { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.stack b {
+  font-family: var(--font-mono); font-weight: 500; font-size: 12px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent);
+}
+.stack span { font-size: 14px; }
+
+.contact { border-top: 1px solid var(--line); padding-top: 20px; display: grid; gap: 10px; }
+.contact-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.contact-row code { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+.contact-row small { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; width: 56px; }
+.copy {
+  font: 500 12px var(--font-mono); color: var(--fg); background: transparent;
+  border: 1px solid var(--line); padding: 4px 10px; cursor: pointer;
+}
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+
+.theme {
+  margin-top: 24px; font: 500 12px var(--font-mono); color: var(--muted);
+  background: transparent; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+
+/* registry */
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px 24px; border-bottom: 2px solid var(--fg); padding-bottom: 14px; margin-bottom: 4px;
+}
+.bar h2 { font-family: var(--font-display); font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button {
+  font: 500 13px var(--font-mono); color: var(--fg); background: transparent;
+  border: 1px solid var(--line); padding: 6px 12px; cursor: pointer;
+}
+.filters button:hover { border-color: var(--accent); }
+.filters button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.entry { border-bottom: 1px solid var(--line); }
+.entry summary {
+  list-style: none; cursor: pointer; padding: 22px 0;
+  display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 4px 18px; align-items: start;
+}
+.entry summary::-webkit-details-marker { display: none; }
+.year { font-family: var(--font-mono); font-size: 13px; color: var(--muted); padding-top: 6px; font-variant-numeric: tabular-nums; }
+.entry h3 {
+  font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em;
+  margin: 0 0 6px; line-height: 1.2; text-wrap: balance;
+}
+.entry summary:hover h3 { color: var(--accent); }
+.entry p { margin: 0; color: var(--muted); max-width: 62ch; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.tag {
+  font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border: 1px solid var(--line); color: var(--fg);
+}
+.tag.lang { border-color: var(--accent); color: var(--accent); }
+.chev { font-family: var(--font-mono); font-size: 18px; color: var(--muted); padding-top: 2px; transition: transform .15s; }
+.entry[open] .chev { transform: rotate(90deg); }
+.detail { padding: 0 0 26px 74px; display: grid; gap: 12px; min-width: 0; }
+.detail .file { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+pre {
+  margin: 0; background: var(--code-bg); border: 1px solid var(--line);
+  padding: 16px; overflow-x: auto; font: 13px/1.6 var(--font-mono); tab-size: 4;
+}
+.repo { font-family: var(--font-mono); font-size: 13px; }
+.note { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 20px; }
+
+@media (max-width: 560px) {
+  .entry summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .year { grid-column: 1 / -1; padding-top: 0; }
+  .detail { padding-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+</style>
+<style>body{margin:0}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <aside>
+    <p class="eyebrow">Backend · Web · Боты</p>
+    <h1>Дмитрий</h1>
+    <p class="lead">Пишу сервисы на Go и Python, собираю к ним интерфейсы на HTML, CSS и TypeScript.</p>
+
+    <ul class="stack">
+      <li><b>Опыт</b><span>3,5 года в разработке</span></li>
+      <li><b>Go</b><span>net/http, chi, gRPC, pgx, cobra</span></li>
+      <li><b>Python</b><span>aiogram, Telethon, FastAPI, asyncio</span></li>
+      <li><b>Web</b><span>HTML, CSS, TypeScript, JavaScript</span></li>
+      <li><b>Данные</b><span>PostgreSQL, Redis, SQLite</span></li>
+      <li><b>Среда</b><span>Linux, Docker, systemd, shell</span></li>
+    </ul>
+
+    <div class="contact">
+      <div class="contact-row"><small>Telegram</small><code>@Wauzej</code><button class="copy" data-copy="@Wauzej" type="button">копировать</button></div>
+      <div class="contact-row"><small>Почта</small><code>dmitryworkgm@gmail.com</code><button class="copy" data-copy="dmitryworkgm@gmail.com" type="button">копировать</button></div>
+    </div>
+    <button class="theme" id="theme" type="button">сменить тему</button>
+  </aside>
+
+  <main>
+    <div class="bar">
+      <h2>Проекты <span id="count" style="color:var(--muted);font-weight:500"></span></h2>
+      <div class="filters" role="group" aria-label="Фильтр по стеку">
+        <button type="button" data-f="all" aria-pressed="true">все</button>
+        <button type="button" data-f="go" aria-pressed="false">go</button>
+        <button type="button" data-f="py" aria-pressed="false">python</button>
+        <button type="button" data-f="web" aria-pressed="false">web</button>
+      </div>
+    </div>
+    <div id="list"></div>
+  </main>
+</div>
+
+<script>
+/* Редактируйте только этот массив: страница сама отрисует список и фильтры.
+   kind: "go" | "py" | "web" (можно несколько), lang: "go" | "python" | "ts" и т.д. */
+var PROJECTS = [
+  {
+    year: 2026, kind: ["py"],
+    title: "Telegram-бот с заданиями и рефералами",
+    text: "Платные задания, подписки на каналы спонсоров, розыгрыши, профиль и админ-панель. Вся логика в текстовом интерфейсе, без mini-app.",
+    stack: ["Python", "aiogram 3", "PostgreSQL", "Redis"],
+    file: "bot/handlers/tasks.py", lang: "python",
+    code: "@router.callback_query(F.data.startswith(\"task:\"))\nasync def take_task(call: CallbackQuery, db: Database):\n    task_id = int(call.data.split(\":\")[1])\n    task = await db.tasks.get(task_id)\n    if not await is_subscribed(call.bot, call.from_user.id, task.channel):\n        return await call.answer(\"Сначала подпишитесь на канал\", show_alert=True)\n    await db.rewards.credit(call.from_user.id, task.reward)\n    await call.message.edit_text(f\"Начислено {task.reward} ₽\")",
+    repo: "github.com/your-name/tasks-bot"
+  },
+  {
+    year: 2026, kind: ["go"],
+    title: "Сервис коротких ссылок",
+    text: "REST API с редиректами, счётчиком переходов и ограничением частоты запросов. Один бинарник, конфигурация через переменные окружения.",
+    stack: ["Go", "chi", "SQLite", "Docker"],
+    file: "internal/http/redirect.go", lang: "go",
+    code: "func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {\n\tcode := chi.URLParam(r, \"code\")\n\tlink, err := h.store.Find(r.Context(), code)\n\tif errors.Is(err, store.ErrNotFound) {\n\t\thttp.NotFound(w, r)\n\t\treturn\n\t}\n\tgo h.store.CountHit(context.WithoutCancel(r.Context()), link.ID)\n\thttp.Redirect(w, r, link.URL, http.StatusFound)\n}",
+    repo: "github.com/your-name/shortlink"
+  },
+  {
+    year: 2026, kind: ["py"],
+    title: "Парсер Telegram-папок",
+    text: "Принимает ссылку вида t.me/addlist, обходит чаты в папке и выгружает их имена и ссылки списком.",
+    stack: ["Python", "Telethon", "asyncio"],
+    file: "parser/folders.py", lang: "python",
+    code: "async def read_folder(client: TelegramClient, slug: str) -> list[str]:\n    invite = await client(CheckChatlistInviteRequest(slug=slug))\n    links = []\n    for chat in invite.chats:\n        if getattr(chat, \"username\", None):\n            links.append(f\"https://t.me/{chat.username}\")\n    return links",
+    repo: "github.com/your-name/folder-parser"
+  },
+  {
+    year: 2026, kind: ["go", "web"],
+    title: "Панель мониторинга серверов",
+    text: "Go-агент собирает нагрузку и память, TypeScript-интерфейс показывает графики в реальном времени через WebSocket.",
+    stack: ["Go", "WebSocket", "TypeScript", "Canvas"],
+    file: "agent/collect.go", lang: "go",
+    code: "type Sample struct {\n\tAt   time.Time `json:\"at\"`\n\tCPU  float64   `json:\"cpu\"`\n\tMem  float64   `json:\"mem\"`\n}\n\nfunc Stream(ctx context.Context, out chan<- Sample) {\n\tt := time.NewTicker(time.Second)\n\tdefer t.Stop()\n\tfor {\n\t\tselect {\n\t\tcase <-ctx.Done():\n\t\t\treturn\n\t\tcase now := <-t.C:\n\t\t\tout <- Sample{At: now, CPU: readCPU(), Mem: readMem()}\n\t\t}\n\t}\n}",
+    repo: "github.com/your-name/watchtower"
+  },
+  {
+    year: 2026, kind: ["web"],
+    title: "Лендинг для студии",
+    text: "Адаптивная страница без фреймворков: сетка на CSS Grid, светлая и тёмная тема, форма заявки с проверкой на TypeScript.",
+    stack: ["HTML", "CSS", "TypeScript"],
+    file: "src/form.ts", lang: "ts",
+    code: "const form = document.querySelector<HTMLFormElement>(\"#lead\")!;\n\nform.addEventListener(\"submit\", (e) => {\n  e.preventDefault();\n  const data = new FormData(form);\n  const phone = String(data.get(\"phone\") ?? \"\").replace(/\\D/g, \"\");\n  if (phone.length < 10) {\n    form.phone.setCustomValidity(\"Введите номер полностью\");\n    return form.reportValidity();\n  }\n  send(Object.fromEntries(data));\n});",
+    repo: "github.com/your-name/studio-landing"
+  },
+  {
+    year: 2026, kind: ["go"],
+    title: "CLI для пакетной обработки файлов",
+    text: "Консольная утилита с подкомандами: переименование, сжатие и проверка контрольных сумм. Параллельная обработка по числу ядер.",
+    stack: ["Go", "cobra", "goroutines"],
+    file: "cmd/hash.go", lang: "go",
+    code: "var hashCmd = &cobra.Command{\n\tUse:   \"hash [dir]\",\n\tShort: \"Посчитать SHA-256 для всех файлов в каталоге\",\n\tArgs:  cobra.ExactArgs(1),\n\tRunE: func(cmd *cobra.Command, args []string) error {\n\t\tworkers := runtime.NumCPU()\n\t\treturn walkAndHash(cmd.Context(), args[0], workers)\n\t},\n}",
+    repo: "github.com/your-name/fileops"
+  }
+];
+
+(function () {
+  var KINDS = { go: "Go", py: "Python", web: "Web" };
+  var list = document.getElementById("list");
+  var count = document.getElementById("count");
+  var current = "all";
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function render() {
+    list.textContent = "";
+    var shown = PROJECTS.filter(function (p) { return current === "all" || p.kind.indexOf(current) !== -1; });
+    count.textContent = "(" + shown.length + ")";
+    shown.forEach(function (p, i) {
+      var d = el("details", "entry");
+      if (i === 0) d.open = true;
+
+      var s = el("summary");
+      s.appendChild(el("span", "year", String(p.year)));
+      var body = el("div");
+      body.appendChild(el("h3", null, p.title));
+      body.appendChild(el("p", null, p.text));
+      var tags = el("div", "tags");
+      p.stack.forEach(function (t, j) { tags.appendChild(el("span", j === 0 ? "tag lang" : "tag", t)); });
+      body.appendChild(tags);
+      s.appendChild(body);
+      s.appendChild(el("span", "chev", "›"));
+      d.appendChild(s);
+
+      var det = el("div", "detail");
+      det.appendChild(el("div", "file", p.file));
+      var pre = el("pre");
+      var code = el("code", null, p.code);
+      pre.appendChild(code);
+      det.appendChild(pre);
+      d.appendChild(det);
+      list.appendChild(d);
+    });
+  }
+
+  document.querySelectorAll(".filters button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      current = b.getAttribute("data-f");
+      document.querySelectorAll(".filters button").forEach(function (x) {
+        x.setAttribute("aria-pressed", x === b ? "true" : "false");
+      });
+      render();
+    });
+  });
+
+  document.querySelectorAll(".copy").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var text = b.getAttribute("data-copy");
+      var row = b.parentNode.querySelector("code");
+      function fallback() {
+        var r = document.createRange(); r.selectNodeContents(row);
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      }
+      function done() { b.textContent = "готово"; setTimeout(function () { b.textContent = "копировать"; }, 1400); }
+      try {
+        navigator.clipboard.writeText(text).then(done, fallback);
+      } catch (e) { fallback(); }
+    });
+  });
+
+  document.getElementById("theme").addEventListener("click", function () {
+    var root = document.documentElement;
+    var cur = root.getAttribute("data-theme");
+    if (!cur) cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    root.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
